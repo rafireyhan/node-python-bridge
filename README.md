@@ -30,16 +30,27 @@ flowchart LR
 - `node/` NestJS server (WebSocket Gateway)
 - `python/` FastAPI server (WebSocket)
 - `client/` Python CLI client (websocket-client)
+- `docker-compose.yml` Orchestrates Node and Python services
 - `README.md` Project documentation
 
 ### How to Run
 
+#### Run with Docker (recommended)
+- Build and start both services:
+  - `docker compose up --build`
+- Services:
+  - Node: `ws://localhost:3000/ws`
+  - Python: `ws://localhost:8000/ws`
+- Stop:
+  - `docker compose down`
+
+#### Run locally (pnpm)
 - Start Python (in `python/`):
   - `pip install -r requirements.txt`
   - `uvicorn app:app --host 0.0.0.0 --port 8000`
 - Start Node (in `node/`):
-  - `npm install`
-  - `npm run start` (or `npm run start:dev`)
+  - `pnpm install`
+  - `pnpm run start` (or `pnpm run start:dev`)
 - Run client (in `client/`):
   - `pip install -r requirements.txt`
   - `python client.py`
@@ -47,8 +58,7 @@ flowchart LR
 ### Quick Manual Test (without client.py)
 
 - With `wscat` (Node websocket client):
-  - `npm i -g wscat`
-  - `wscat -c ws://localhost:3000/ws`
+  - `pnpm dlx wscat -c ws://localhost:3000/ws`
   - Send: `{"text": "hello world"}`
 
 You should see incremental `progress` messages followed by a `final` result.

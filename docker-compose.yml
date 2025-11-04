@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  python:
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: python-service
+    environment:
+      - PYTHON_PORT=${PYTHON_PORT:-8000}
+    ports:
+      - "${PYTHON_PORT:-8000}:8000"
+    restart: unless-stopped
+
+  node:
+    build:
+      context: ./node
+      dockerfile: Dockerfile
+    container_name: node-service
+    environment:
+      - PORT=${NODE_PORT:-3000}
+      - PYTHON_WS_URL=${PYTHON_WS_URL:-ws://python:8000/ws}
+    depends_on:
+      - python
+    ports:
+      - "${NODE_PORT:-3000}:3000"
+    restart: unless-stopped
