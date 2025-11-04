@@ -3,3 +3,5 @@
 
 /node/node_modules
 /node/pnpm-lock.yaml
+
+/client/.venv
