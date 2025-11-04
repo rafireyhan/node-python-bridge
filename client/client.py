@@ -1,8 +1,12 @@
 import websocket
 import threading
 import json
+import dotenv
+import os
 
-NODE_WS = 'ws://localhost:3000/ws'
+dotenv.load_dotenv()
+
+NODE_WS = os.getenv('NODE_WS_URL') or 'ws://localhost:3000/ws'
 
 def on_message(ws, message):
     try:
