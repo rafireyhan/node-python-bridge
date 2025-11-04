@@ -4,12 +4,7 @@ A minimal architecture that bridges a NestJS server and a FastAPI server over We
 
 ## Architecture Diagram
 
-```mermaid
-flowchart LR
-  C[Client CLI / Browser] <-- ws://localhost:3000/ws --> N[NestJS Gateway (/ws)]
-  N -- ws://python:8000/ws --> P[FastAPI WebSocket (/ws)]
-  P -->|progress/final| N -->|progress/final| C
-```
+![Architecture Diagram](./architecture.png)
 
 ## Technical Design
 
@@ -25,43 +20,82 @@ flowchart LR
   - Simple, low-latency, bi-directional streaming.
   - Minimal dependencies and friction for dev testing.
 
+## Technical Decisions
+
+- Why Two WebSocket Layers:
+  Using two WebSocket layers—Client ↔ Node and Node ↔ Python—creates a clean separation between presentation, orchestration, and computation. The Node layer acts as a bridge: it handles client sessions, validation, and lifecycle management while streaming messages to and from Python in real time.
+
+- Why NestJS:
+  NestJS was chosen because it offers a predefined and opinionated architecture - modules, dependenct injection, and decorators - allowing immediate scalability without manually crafting folder structures or middleware wiring as in bare Express.
+
 ## Folder Structure
 
 - `node/` NestJS server (WebSocket Gateway)
+  - `src/app.module.ts` — Root module; wires `ConfigModule`, `WebsocketGateway`, and `PythonService`.
+  - `src/main.ts` — Application bootstrap.
+  - `src/app.controller.ts` / `src/app.service.ts` — Sample controller/service.
+  - `src/modules/websocket/websocket.gateway.ts` — WebSocket gateway entry point (`/ws`), proxies to Python.
+  - `src/modules/integrations/python.services.ts` — Integration service that creates and manages the Python WebSocket connection.
+  - `src/common/helpers/message.ts` — Centralized message types and helpers for building/parsing payloads.
+  - `src/test/` — e2e tests and Jest config.
+  - `.env.example` — Example environment config for Node (includes `PYTHON_WS_URL`).
+  - `eslint.config.mjs`, `.prettierrc` — Linting/formatting configuration.
+  - `package.json` — Scripts and dependencies.
 - `python/` FastAPI server (WebSocket)
+  - `app.py` — WebSocket endpoint at `/ws`; emits progress and final messages.
+  - `requirements.txt` — Python dependencies.
 - `client/` Python CLI client (websocket-client)
-- `docker-compose.yml` Orchestrates Node and Python services
-- `README.md` Project documentation
+  - `client.py` — Sends a text payload and prints streaming responses.
+  - `.env.example` — Example environment config for client.
+  - `requirements.txt` — Python dependencies.
+- `docker-compose.yml` — Orchestrates Node and Python services.
+- `architecture.png` — System architecture diagram.
+- `README.md` — Project documentation.
 
-### How to Run
+## How to Run
+
+#### Run locally (pnpm)
+
+- Start Python (in `python/`):
+  - Create virtual environment: `python -m venv .venv`
+  - Activate the virtual environment: `source .venv/bin/activate`
+  - Install dependencies: `pip install -r requirements.txt`
+  - Run Python server: `uvicorn app:app --host 0.0.0.0 --port 8000`
+- Start Node (in `node/`):
+  - Install dependencies: `pnpm install`
+  - Run Node server: `pnpm run start` (or `pnpm run start:dev`)
+- Run client (in `client/`):
+  - Create virtual environment: `python -m venv .venv`
+  - Activate the virtual environment: `source .venv/bin/activate`
+  - Install dependencies: `pip install -r requirements.txt`
+  - Run client: `python client.py`
+  - Enter text to analyze (e.g., "Hello World")
+
+You should see incremental `progress` messages followed by a `final` result.
 
 #### Run with Docker (recommended)
+
 - Build and start both services:
   - `docker compose up --build`
 - Services:
   - Node: `ws://localhost:3000/ws`
   - Python: `ws://localhost:8000/ws`
+- Run client (in `client/`):
+
+  - Create virtual environment: `python -m venv .venv`
+  - Activate the virtual environment: `source .venv/bin/activate`
+  - Install dependencies: `pip install -r requirements.txt`
+  - Run client: `python client.py`
+  - Enter text to analyze (e.g., "Hello World")
+
 - Stop:
   - `docker compose down`
-
-#### Run locally (pnpm)
-- Start Python (in `python/`):
-  - `pip install -r requirements.txt`
-  - `uvicorn app:app --host 0.0.0.0 --port 8000`
-- Start Node (in `node/`):
-  - `pnpm install`
-  - `pnpm run start` (or `pnpm run start:dev`)
-- Run client (in `client/`):
-  - `pip install -r requirements.txt`
-  - `python client.py`
 
 ### Quick Manual Test (without client.py)
 
 - With `wscat` (Node websocket client):
   - `pnpm dlx wscat -c ws://localhost:3000/ws`
   - Send: `{"text": "hello world"}`
-
-You should see incremental `progress` messages followed by a `final` result.
 
 ## Configuration
 
@@ -76,24 +110,15 @@ You should see incremental `progress` messages followed by a `final` result.
 
 Compose uses sensible defaults (`NODE_PORT`, `PYTHON_PORT`, `PYTHON_WS_URL`). You can override at runtime using environment variables, or create a `.env` in the repo root.
 
-## Implementation Notes
-
-- Node WebSocket gateway path: `/ws` (uses `@nestjs/platform-ws`).
-- Python FastAPI WebSocket path: `/ws` (served by `uvicorn`).
-- Node connects to Python using `PYTHON_WS_URL` (default `ws://localhost:8000/ws`, or `ws://python:8000/ws` in Compose).
-- Client expects to connect to Node at `ws://localhost:3000/ws`.
-
 ## Improvement Ideas
 
 - Robustness:
   - Health checks and readiness probes
   - Reconnect/backoff strategies for Python bridge
-  - Correlation IDs and structured logging
 - Security:
   - Authentication for client ↔ Node and Node ↔ Python
   - Rate limiting and input validation at Node boundary
 - Observability:
-  - Centralized logging and tracing (OpenTelemetry)
   - Metrics on message throughput and latency
 - Deployment:
   - CI pipeline running tests and linting
@@ -101,8 +126,9 @@ Compose uses sensible defaults (`NODE_PORT`, `PYTHON_PORT`, `PYTHON_WS_URL`). Yo
   - Horizontal scaling of Python with a broker (Redis) and load-balanced workers
   - Backpressure handling and message buffering
 
-## Credits
+## Implementation Notes
 
-- NestJS for the server framework and websocket adapter
-- FastAPI and Uvicorn for async WebSocket handling
-- websocket-client for the CLI testing utility
+- Node WebSocket gateway path: `/ws` (uses `@nestjs/platform-ws`).
+- Python FastAPI WebSocket path: `/ws` (served by `uvicorn`).
+- Node connects to Python using `PYTHON_WS_URL` (default `ws://localhost:8000/ws`, or `ws://python:8000/ws` in Compose).
+- Client expects to connect to Node at `ws://localhost:3000/ws`.
